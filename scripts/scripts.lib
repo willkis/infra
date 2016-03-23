@@ -1,0 +1,152 @@
+#
+# This is a barebone bash functions library 
+# 
+# It was made to help "draw" better screens in Solaris environment
+#
+# To use it, just put ". scripts.lib" at your script beginning 
+#
+# Any comments please feel free to contact Gustavo Picoloto:
+#    gustavo (at) picoloto (dot) com (dot) br
+#
+# ###
+#
+# Version 0.1 - some text utilities
+
+
+
+
+############################################################################
+
+# center the supplied text in the line
+# usage: text_center line "text to center"
+text_center() {
+	COLS=`tput cols`
+	LINE=$1
+	STR=$2
+
+	SIZESTR=${#STR}
+	CCOL=`echo \($COLS-$SIZESTR\)/2|bc`
+
+	tput cup $LINE $CCOL
+	echo $STR
+	
+}
+
+
+# write the supplied text in the right of the screen
+# usage: text_right line "text"
+text_right() {
+	COLS=`tput cols`
+	LINE=$1
+	STR=$2
+
+	SIZESTR=${#STR}
+	CCOL=`echo $COLS-$SIZESTR|bc`
+
+	tput cup $LINE $CCOL
+	echo $STR
+
+}
+
+# write the supplied text in the specified position
+# usage: text_pos column "text"
+text_pos() {
+	echo -en "\033[${1};${2}H";
+}
+
+
+# "bolds" the text
+text_bold() {
+	tput smso	
+} 
+
+
+# put the text in the "normal color"
+text_normal() {
+	tput rmso
+} 
+
+# hide cursor
+hide_cursor() {
+	echo -en "\033[?25l";
+}
+
+# show cursor
+show_cursor() {
+	echo -en "\033[?12l\033[?25h";
+}
+
+# underline the text
+text_underline() {
+	echo -ne "\033[4m"
+} 
+
+
+# change the font color
+# usage: text_color color
+text_color() {
+	color=$1
+
+	case "$color" in
+		black) echo -ne "\033[30;40m" ;;
+		red) echo -ne "\033[31;40m" ;;
+		green) echo -ne "\033[32;40m" ;;
+		yellow) echo -ne "\033[33;40m" ;;
+		blue) echo -ne "\033[34;40m" ;;
+		magenta) echo -ne "\033[35;40m" ;;
+		cyan) echo -ne "\033[36;40m" ;;
+		white) echo -ne "\033[37;40m" ;;
+		*);;
+	esac
+}
+
+# P{0-3} - auxiliary functions that shows the "waiting sign"
+P0(){ echo -n '\';}
+P1(){ echo -n '|';}
+P2(){ echo -n '/';}
+P3(){ echo -n '-';}
+
+
+# emula o comando seq, que nao tem instalado nos solaris
+######
+seq() {
+        parm1=$1
+        parm2=$2
+        parm3=$3
+        [ -z $parm1 ] && {
+                exit 1
+                } || { [ -z $parm2 ] && {
+                        exit 1
+                } || { [ $parm1 == "-w" ] && {
+                                [ -z $parm3 ] && {
+                                        exit 1
+
+                                }
+                        }
+                }
+        }
+        [ $parm1 == "-w" ] && {
+                start=$parm2
+                end=$parm3
+        } || {
+                start=$parm1
+                end=$parm2
+        }
+
+        while [ $start -le $end ]; do
+                [ $parm1 == "-w" ] && {
+                        size=`echo -n $start|wc -c`
+                        [ $size -eq 1 ] && {
+                                echo "0$start"
+                        } || {
+                                echo $start
+                        }
+                } || {
+                        echo $start
+                }
+                start=$(($start+1))
+        done
+}
+#####
+# fim seq
+

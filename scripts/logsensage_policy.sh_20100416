@@ -1,0 +1,188 @@
+#!/usr/bin/bash
+
+# Concatenates the last smacesslogs from several servers for the final convertion.
+
+LOGSDIR='/app/sm6.0/siteminder/backup'
+LASTCMD="ls $LOGSDIR/*smaccess.log.gz|tail -1"
+SERVERS='10.170.36.24 10.170.36.25 10.170.36.26'
+RUSER='pcsopn3'
+
+TMPDIR='/app/reports/logmanagement'
+FINALDIR='/app/reports/logmanagement/out'
+
+MATRIZ=$SERVERS
+
+touch $TMPDIR/arq0
+gzip $TMPDIR/arq0
+
+echo 'downloading and concatenating remote log files'
+
+#declare -p MATRIZ
+#        for ANSWER in ${MATRIZ[*]}
+        for ANSWER in ${SERVERS[*]}
+        do
+        LASTONE=`ssh $RUSER@$ANSWER $LASTCMD`
+        scp $RUSER@$ANSWER:$LASTONE $TMPDIR/ 
+                ARCHIVE=`echo $LASTONE|cut -d / -f 6`
+                gzcat $TMPDIR/arq0.gz $TMPDIR/$ARCHIVE | gzip > $TMPDIR/tmp.gz
+                mv $TMPDIR/tmp.gz $TMPDIR/arq0.gz
+        done
+
+# Concatenates the local smaccesslog with the servers one
+
+echo 'concatenating local file with downloaded ones'
+ 
+LASTLOCAL=`ls $LOGSDIR/*smaccess.log.gz|tail -1`
+gzcat $TMPDIR/arq0.gz $LASTLOCAL | gzip > $TMPDIR/tmp.gz
+mv $TMPDIR/tmp.gz $TMPDIR/arq0_final.gz 
+rm $TMPDIR/arq0.gz
+
+# generates the serial for the final output file 
+
+SERIAL=`echo $LASTONE | cut -d / -f 6 |cut -c 1-14`
+
+# removes the residual file from the download loop
+
+TMPFILE=`echo $LASTONE | cut -d / -f 6`
+rm $TMPDIR/$TMPFILE
+
+echo 'converting concatenated files to the SOX format' 
+
+# "Convert" the last smaccess on backup to the SOX format
+
+gzcat $TMPDIR/arq0_final.gz |/usr/xpg4/bin/awk 'BEGIN { FS = "[ ,=\[\"]" } ; 
+# DSF
+# Autenticacao aceita
+/International/ && /AuthAccept/ && /\[0\]/ {
+	print "0061C|" $2 "|" $4 "|DSF|" $9 "|" $7 "|Tentativa de Autenticacao com Sucesso";
+	} ;
+# Autenticacao recusada
+/International/ && /AuthReject/ && /\[0\]/ {
+	print "006TS|" $2 "|" $4 "|DSF|" $9 "|" $7 "|Tentativa de Autenticao sem Sucesso";
+	} ;
+# Bloqueio por inatividade
+/International/ && /AuthReject/ && /\[25\]/ {
+	print "015BC|" $2 "|" $4 "|DSF|" $9 "|" $7 "|Bloqueio de conta por inatividade";
+	} ;
+# Logout 
+/International\/Logout/ && /AzAccept/ {
+	print "0060C|" $2 "|" $4 "|DSF|" $9 "|" $7 "|Fim de sessao do usuario";
+	} ;
+
+# Disabled since the boks script already has this information
+# Boks
+# Autenticacao aceita
+#/boksagent/ && /AuthAccept/ && /\[0\]/ {
+#	print "0061C|" $2 "|" $4 "|BOKS|" $9 "|" $7;
+#	} ;
+# Autenticacao recusada
+#/boksagent/ && /AuthReject/ && /\[0\]/ {
+#	Print "006TS|" $2 "|" $4 "|BOKS|" $9 "|" $7;
+#	} ;
+# Bloqueio por inatividade
+#/boksagent/ && /AuthReject/ && /\[25\]/ {
+#	print "015BC|" $2 "|" $4 "|BOKS|" $9 "|" $7;
+#	} ;
+# RAP
+# Autenticacao aceita
+/rap/ && /AuthAccept/ && /\[0\]/ {
+	print "0061C|" $2 "|" $4 "|RAP|" $9 "|" $7 "|Tentativa de Autenticacao com Sucesso";
+	} ;
+# Autenticacao recusada
+/rap/ && /AuthReject/ && /\[0\]/ {
+	print "006TS|" $2 "|" $4 "|RAP|" $9 "|" $7 "|Tentativa de Autenticao sem Sucesso";
+	} ;
+# Bloqueio por inatividade
+/rap/ && /AuthReject/ && /\[25\]/ {
+	print "015BC|" $2 "|" $4 "|RAP|" $9 "|" $7 "|Bloqueio de conta por inatividade";
+	} ;
+
+# SCTR 
+# Autenticacao aceita
+/sctr/ && /AuthAccept/ && /\[0\]/ {
+	print "0061C|" $2 "|" $4 "|SCTR|" $9 "|" $7 "|Tentativa de Autenticacao com Sucesso";
+	} ;
+# Autenticacao recusada
+/sctr/ && /AuthReject/ && /\[0\]/ {
+	print "006TS|" $2 "|" $4 "|SCTR|" $9 "|" $7 "|Tentativa de Autenticao sem Sucesso";
+	} ;
+# Bloqueio por inatividade
+/sctr/ && /AuthReject/ && /\[25\]/ {
+	print "015BC|" $2 "|" $4 "|SCTR|" $9 "|" $7 "|Bloqueio de conta por inatividade";
+	} ;
+
+#PDV_01 e 02
+/pdv live/ && /AuthAccept/ && /\[0\]/ {
+        print "0061C|" $2 "|" $4 "|PDV LIVE|" $9 "|" $7 "|Tentativa de Autenticacao com Sucesso";
+        } ;
+# Autenticacao recusada
+/pdv live/ && /AuthReject/ && /\[0\]/ {
+        print "006TS|" $2 "|" $4 "|PDV LIVE|" $9 "|" $7 "|Tentativa de Autenticao sem Sucesso";
+        } ;
+# Bloqueio por inatividade
+/pdv live/ && /AuthReject/ && /\[25\]/ {
+        print "015BC|" $2 "|" $4 "|PDV LIVE|" $9 "|" $7 "|Bloqueio de conta por inatividade";
+        } ;
+
+#mgmt
+/mgmt/ && /AuthAccept/ && /\[0\]/ {
+        print "0061C|" $2 "|" $4 "|PDV MGMT|" $9 "|" $7 "|Tentativa de Autenticacao com Sucesso";
+        } ;
+# Autenticacao recusada
+/mgmt/ && /AuthReject/ && /\[0\]/ {
+        print "006TS|" $2 "|" $4 "|PDV MGMT|" $9 "|" $7 "|Tentativa de Autenticao sem Sucesso";
+        } ;
+# Bloqueio por inatividade
+/mgmt/ && /AuthReject/ && /\[25\]/ {
+        print "015BC|" $2 "|" $4 "|PDV MGMT|" $9 "|" $7 "|Bloqueio de conta por inatividade";
+        } ;
+		
+#protocolos externo
+/protocolos_ext_1/ && /AuthAccept/ && /\[0\]/ {
+        print "0061C|" $2 "|" $4 "|PROTOCOLOS EXTERNO|" $9 "|" $7 "|Tentativa de Autenticacao com Sucesso";
+        } ;
+# Autenticacao recusada
+/protocolos_ext_1/ && /AuthReject/ && /\[0\]/ {
+        print "006TS|" $2 "|" $4 "|PROTOCOLOS EXTERNO|" $9 "|" $7 "|Tentativa de Autenticao sem Sucesso";
+        } ;
+# Bloqueio por inatividade
+/protocolos_ext_1/ && /AuthReject/ && /\[25\]/ {
+        print "015BC|" $2 "|" $4 "|PROTOCOLOS EXTERNO|" $9 "|" $7 "|Bloqueio de conta por inatividade";
+        } ;		
+		
+#protocolos interno
+/protocolos_int_1/ && /AuthAccept/ && /\[0\]/ {
+        print "0061C|" $2 "|" $4 "|PROTOCOLOS INTERNO|" $9 "|" $7 "|Tentativa de Autenticacao com Sucesso";
+        } ;
+# Autenticacao recusada
+/protocolos_int_1/ && /AuthReject/ && /\[0\]/ {
+        print "006TS|" $2 "|" $4 "|PROTOCOLOS INTERNO|" $9 "|" $7 "|Tentativa de Autenticao sem Sucesso";
+        } ;
+# Bloqueio por inatividade
+/protocolos_int_1/ && /AuthReject/ && /\[25\]/ {
+        print "015BC|" $2 "|" $4 "|PROTOCOLOS INTERNO|" $9 "|" $7 "|Bloqueio de conta por inatividade";
+        } ;				
+
+# Change Password
+# Troca de senha sem sucesso
+/Ch_Pwd/ && /AuthReject/ && /\[21\]/ {
+	print "014AS|" $2 "|" $4 "|PCS|" $9 "|" $7 "|Alteracao de senha sem sucesso";
+	} ;
+# Troca de senha sem sucesso digitou senha errada
+/Ch_Pwd/ && /AuthReject/ && /\[22\]/ {
+	print "014AS|" $2 "|" $4 "|PCS|" $9 "|" $7 "|Alteracao de senha sem sucesso";
+	} ;
+# Troca de senha com sucesso
+/Ch_Pwd/ && /AuthAccept/ && /\[23\]/ {
+	print "014AC|" $2 "|" $4 "|PCS|" $9 "|" $7 "|Alteracao de senha com sucesso";
+	} ;
+# Bloqueio por tentativas erradas
+# ManagementCommand snesun332 [20/Oct/2008:01:09:16 -0300] "- SiteMinder" ChangeDisabledUserState 'uid=T3020003,ou=people,dc=tim,dc=com,dc=br'
+/ManagementCommand/ && /ChangeDisabledUserState/ {
+	print "002BC|" $2 "|" $4 "|PCS|" $12 "|" $7 "|Bloqueio de conta devido a numero excessivo de tentativas de autenticacao sem sucesso";
+	}' | gzip > $FINALDIR\/$SERIAL\smacesslog_concat.GZ
+
+# Remove Arquivo concatenado arq0_final.gz
+rm $TMPDIR/arq0_final.gz
+
+echo 'ALL DONE!'
